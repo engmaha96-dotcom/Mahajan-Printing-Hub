@@ -43,3 +43,6 @@ python-multipart
 pypdf
 PyMuPDF
 gunicorn
+uvicorn==0.30.0
+gunicorn==22.0.0
+
