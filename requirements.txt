@@ -37,3 +37,9 @@ tzdata==2026.5
 uvicorn==0.54.0
 Werkzeug==3.1.9
 xlsxwriter==3.2.9
+fastapi
+uvicorn
+python-multipart
+pypdf
+PyMuPDF
+gunicorn
