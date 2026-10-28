@@ -67,6 +67,9 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_D9384F52B17E4A38849E32E5C44AB584 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_3C696C50B67B496FB74E45600E08E4BE }}
 
+      - name: Ensure Azure Web App runtime is Python 3.12
+        run: az webapp config set --resource-group mahajan-printing-hub_group --name mahajan-printing-hub --linux-fx-version "PYTHON|3.12"
+
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
