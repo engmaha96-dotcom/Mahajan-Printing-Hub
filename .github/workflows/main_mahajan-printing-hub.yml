@@ -67,6 +67,11 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_D9384F52B17E4A38849E32E5C44AB584 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_3C696C50B67B496FB74E45600E08E4BE }}
 
+      - name: Ensure Azure Web App is running
+        run: |
+          RESOURCE_GROUP="$(az webapp show --name 'mahajan-printing-hub' --query resourceGroup -o tsv)"
+          az webapp start --name 'mahajan-printing-hub' --resource-group "$RESOURCE_GROUP"
+
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
