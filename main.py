@@ -1,23 +1,28 @@
+import html
+import io
+import json
 import os
 import uuid
-import json
 from datetime import datetime
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
-import io
+from typing import Any
 
-# PDF Reader fallback setup
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+
 try:
-    import fitz  # PyMuPDF
-    USE_FITZ = True
+    import fitz
 except ImportError:
+    fitz = None
+
+try:
     from pypdf import PdfReader
-    USE_FITZ = False
+except ImportError:
+    PdfReader = None
+
 
 app = FastAPI(title="Mahajan IT Printing Hub Portal")
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,27 +33,77 @@ app.add_middleware(
 
 UPLOAD_DIR = "uploaded_files"
 ORDERS_FILE = "orders.json"
+MAX_FILE_BYTES = 50 * 1024 * 1024
+HOTLINE = "01839802001"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-
 if not os.path.exists(ORDERS_FILE):
-    with open(ORDERS_FILE, "w", encoding="utf-8") as f:
-        json.dump([], f)
+    with open(ORDERS_FILE, "w", encoding="utf-8") as orders_file:
+        json.dump([], orders_file)
 
+# The established per-page print rates remain the source of truth for the
+# calculator; GSM adds a small paper-cost adjustment around the standard 80 GSM.
 BASE_RATES = {
     "A4": {"bw_single": 1.20, "bw_double": 1.50, "color_single": 1.80, "color_double": 2.20},
     "Legal": {"bw_single": 1.30, "bw_double": 1.60, "color_single": 2.00, "color_double": 2.50},
-    "A3": {"bw_single": 8.00, "bw_double": 10.00, "color_single": 13.00, "color_double": 15.00}
 }
+GSM_ADJUSTMENTS = {70: -0.10, 80: 0.0, 100: 0.20}
+BINDING_RATES = {"none": 0, "staple": 0, "spiral": 70, "hardcover": 150}
+DELIVERY_RATES = {"dhaka": 60, "outside_dhaka": 160, "pickup": 0}
+ALLOWED_GSM = set(GSM_ADJUSTMENTS)
+ALLOWED_SIZES = set(BASE_RATES)
+ALLOWED_COLOR_TYPES = {"bw", "color"}
+ALLOWED_SIDES = {"single", "double"}
+ALLOWED_BINDINGS = set(BINDING_RATES)
+ALLOWED_DELIVERY = set(DELIVERY_RATES)
+temp_file_store: dict[str, dict[str, Any]] = {}
 
-DELIVERY_RATES = {
-    "express_dhaka": 150,
-    "regular_dhaka": 70,
-    "outside_dhaka": 160,
-    "pickup": 0
-}
 
-temp_file_store = {}
+def read_orders() -> list[dict[str, Any]]:
+    try:
+        with open(ORDERS_FILE, "r", encoding="utf-8") as orders_file:
+            data = json.load(orders_file)
+        return data if isinstance(data, list) else []
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def write_orders(orders: list[dict[str, Any]]) -> None:
+    with open(ORDERS_FILE, "w", encoding="utf-8") as orders_file:
+        json.dump(orders, orders_file, ensure_ascii=False, indent=2)
+
+
+def count_pdf_pages(contents: bytes) -> int:
+    if fitz is not None:
+        try:
+            document = fitz.open(stream=contents, filetype="pdf")
+            page_count = document.page_count
+            document.close()
+            return page_count
+        except Exception:
+            pass
+    if PdfReader is not None:
+        try:
+            return len(PdfReader(io.BytesIO(contents)).pages)
+        except Exception:
+            pass
+    raise HTTPException(status_code=400, detail="অবৈধ বা ক্ষতিগ্রস্ত PDF ফাইল।")
+
+
+def validate_options(
+    paper_size: str, color_type: str, print_side: str, gsm: int, binding: str, delivery_option: str
+) -> None:
+    if paper_size not in ALLOWED_SIZES:
+        raise HTTPException(status_code=400, detail="A4 অথবা Legal সাইজ নির্বাচন করুন।")
+    if color_type not in ALLOWED_COLOR_TYPES or print_side not in ALLOWED_SIDES:
+        raise HTTPException(status_code=400, detail="প্রিন্ট মোডের তথ্য সঠিক নয়।")
+    if gsm not in ALLOWED_GSM:
+        raise HTTPException(status_code=400, detail="70, 80 অথবা 100 GSM নির্বাচন করুন।")
+    if binding not in ALLOWED_BINDINGS:
+        raise HTTPException(status_code=400, detail="বাইন্ডিং অপশন সঠিক নয়।")
+    if delivery_option not in ALLOWED_DELIVERY:
+        raise HTTPException(status_code=400, detail="ডেলিভারি অপশন সঠিক নয়।")
+
 
 @app.post("/api/calculate")
 async def calculate_price(
@@ -57,97 +112,54 @@ async def calculate_price(
     color_type: str = Form("bw"),
     print_side: str = Form("single"),
     gsm: int = Form(80),
-    binding: str = Form("none"),
-    lamination: str = Form("false"),
-    delivery_option: str = Form("regular_dhaka")
+    binding: str = Form("staple"),
+    delivery_option: str = Form("dhaka"),
 ):
-    try:
-        contents = await file.read()
-        file_size_mb = len(contents) / (1024 * 1024)
-        
-        if file_size_mb > 50:
-            raise HTTPException(status_code=400, detail="ফাইলের সাইজ ৫০ মেগাবাইটের বেশি হতে পারবে না।")
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="শুধুমাত্র PDF ফাইল আপলোড করুন।")
 
-        page_count = 0
-        if USE_FITZ:
-            try:
-                doc = fitz.open(stream=contents, filetype="pdf")
-                page_count = doc.page_count
-                doc.close()
-            except Exception:
-                pass
+    validate_options(paper_size, color_type, print_side, gsm, binding, delivery_option)
+    contents = await file.read()
+    if len(contents) > MAX_FILE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"ফাইলটি ৫০ MB-এর বেশি। WhatsApp-এ {HOTLINE} নম্বরে পাঠান।",
+        )
 
-        if page_count == 0:
-            try:
-                pdf_reader = PdfReader(io.BytesIO(contents))
-                page_count = len(pdf_reader.pages)
-            except Exception:
-                raise HTTPException(status_code=400, detail="অবৈধ বা ক্ষতিগ্রস্ত PDF ফাইল!")
+    page_count = count_pdf_pages(contents)
+    if page_count < 1:
+        raise HTTPException(status_code=400, detail="PDF ফাইলে কোনো পেজ পাওয়া যায়নি।")
 
-        if page_count == 0:
-            raise HTTPException(status_code=400, detail="PDF ফাইলে কোনো পেজ পাওয়া যায়নি।")
+    rate_key = f"{color_type}_{print_side}"
+    unit_price = BASE_RATES[paper_size][rate_key] + GSM_ADJUSTMENTS[gsm]
+    total_sheets = (page_count + 1) // 2 if print_side == "double" else page_count
+    print_cost = total_sheets * unit_price
+    binding_cost = BINDING_RATES[binding]
+    delivery_cost = DELIVERY_RATES[delivery_option]
+    grand_total = print_cost + binding_cost + delivery_cost
 
-        rate_key = f"{color_type}_{print_side}"
-        base_unit_price = BASE_RATES.get(paper_size, {}).get(rate_key, 1.20)
-
-        gsm_diff = (gsm - 80) / 10
-        adjusted_unit_price = base_unit_price + (gsm_diff * 0.10)
-
-        if print_side == "double":
-            total_sheets = (page_count + 1) // 2
-            print_cost = total_sheets * adjusted_unit_price
-        else:
-            total_sheets = page_count
-            print_cost = page_count * adjusted_unit_price
-
-        lamination_cost = 0
-        if str(lamination).lower() in ["true", "1", "yes"]:
-            rate_per_page = 20 if paper_size == "Legal" else 15
-            lamination_cost = page_count * rate_per_page
-
-        binding_cost = 0
-        if binding == "stapler":
-            binding_cost = 10
-        elif binding == "spiral":
-            binding_cost = 80 if paper_size == "Legal" else 60
-        elif binding == "hardcover":
-            binding_cost = 130 if paper_size == "Legal" else 100
-
-        delivery_cost = DELIVERY_RATES.get(delivery_option, 70)
-        grand_total = print_cost + lamination_cost + binding_cost + delivery_cost
-
-        session_id = str(uuid.uuid4())
-        temp_file_store[session_id] = {
-            "file_name": file.filename,
-            "contents": contents,
-            "details": {
-                "paper_size": paper_size,
-                "color_type": color_type,
-                "print_side": print_side,
-                "gsm": gsm,
-                "binding": binding,
-                "lamination": lamination,
-                "delivery_option": delivery_option,
-                "page_count": page_count,
-                "grand_total": round(grand_total, 2)
-            }
-        }
-
-        return {
-            "status": "success",
-            "session_id": session_id,
+    session_id = str(uuid.uuid4())
+    temp_file_store[session_id] = {
+        "file_name": os.path.basename(file.filename),
+        "contents": contents,
+        "details": {
+            "paper_size": paper_size,
+            "color_type": color_type,
+            "print_side": print_side,
+            "gsm": gsm,
+            "binding": binding,
+            "delivery_option": delivery_option,
             "page_count": page_count,
             "total_sheets": total_sheets,
             "print_cost": round(print_cost, 2),
-            "lamination_cost": round(lamination_cost, 2),
             "binding_cost": round(binding_cost, 2),
             "delivery_cost": round(delivery_cost, 2),
-            "grand_total": round(grand_total, 2)
-        }
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")
+            "grand_total": round(grand_total, 2),
+        },
+    }
+
+    return {"status": "success", "session_id": session_id, **temp_file_store[session_id]["details"]}
+
 
 @app.post("/api/checkout")
 async def process_checkout(
@@ -155,21 +167,29 @@ async def process_checkout(
     customer_name: str = Form(...),
     customer_phone: str = Form(...),
     address: str = Form(...),
+    area: str = Form(""),
+    instructions: str = Form(""),
     payment_method: str = Form(...),
     trx_id: str = Form(""),
-    amount: float = Form(...)
+    amount: float = Form(...),
 ):
-    order_id = f"MICL-{uuid.uuid4().hex[:8].upper()}"
-    saved_filename = "N/A"
+    customer_name = customer_name.strip()
+    customer_phone = customer_phone.strip()
+    address = address.strip()
+    if not customer_name or not customer_phone or not address:
+        raise HTTPException(status_code=400, detail="নাম, ফোন নম্বর এবং বিস্তারিত ঠিকানা দিন।")
+    if session_id not in temp_file_store:
+        raise HTTPException(status_code=400, detail="অর্ডার সেশনটি পাওয়া যায়নি। PDF আবার আপলোড করুন।")
 
-    if session_id in temp_file_store:
-        session_data = temp_file_store.pop(session_id)
-        original_name = session_data["file_name"]
-        saved_filename = f"{order_id}_{original_name}"
-        file_path = os.path.join(UPLOAD_DIR, saved_filename)
-        
-        with open(file_path, "wb") as f:
-            f.write(session_data["contents"])
+    session_data = temp_file_store.pop(session_id)
+    expected_amount = float(session_data["details"]["grand_total"])
+    if abs(float(amount) - expected_amount) > 0.01:
+        raise HTTPException(status_code=400, detail="অর্ডারের মোট বিল পরিবর্তিত হয়েছে। আবার হিসাব করুন।")
+
+    order_id = f"MJ-{uuid.uuid4().hex[:6].upper()}"
+    saved_filename = f"{order_id}_{os.path.basename(session_data['file_name'])}"
+    with open(os.path.join(UPLOAD_DIR, saved_filename), "wb") as saved_file:
+        saved_file.write(session_data["contents"])
 
     order_entry = {
         "order_id": order_id,
@@ -177,109 +197,87 @@ async def process_checkout(
         "customer_name": customer_name,
         "customer_phone": customer_phone,
         "address": address,
+        "area": area.strip(),
+        "instructions": instructions.strip(),
         "payment_method": payment_method,
-        "trx_id": trx_id,
-        "amount": amount,
-        "file_name": saved_filename
+        "trx_id": trx_id.strip(),
+        "amount": expected_amount,
+        "status": "received",
+        "file_name": saved_filename,
+        "details": session_data["details"],
     }
-
-    try:
-        with open(ORDERS_FILE, "r+", encoding="utf-8") as f:
-            orders = json.load(f)
-            orders.insert(0, order_entry)
-            f.seek(0)
-            json.dump(orders, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print("Error saving order:", e)
+    orders = read_orders()
+    orders.insert(0, order_entry)
+    write_orders(orders)
 
     return {
         "status": "success",
         "order_id": order_id,
-        "message": f"ধন্যবাদ {customer_name}! আপনার অর্ডারটি সফলভাবে সেভ হয়েছে।"
+        "amount": expected_amount,
+        "message": f"ধন্যবাদ {customer_name}! আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে।",
     }
+
+
+@app.get("/api/track/{order_id}")
+async def track_order(order_id: str):
+    order = next((item for item in read_orders() if item.get("order_id") == order_id.strip().upper()), None)
+    if not order:
+        raise HTTPException(status_code=404, detail="এই Order ID-এর কোনো অর্ডার পাওয়া যায়নি।")
+    return {
+        "status": "success",
+        "order_id": order["order_id"],
+        "status_code": order.get("status", "received"),
+        "timestamp": order.get("timestamp"),
+        "amount": order.get("amount", 0),
+        "customer_name": order.get("customer_name", ""),
+    }
+
 
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_panel():
-    try:
-        with open(ORDERS_FILE, "r", encoding="utf-8") as f:
-            orders = json.load(f)
-    except Exception:
-        orders = []
+    orders = read_orders()
+    rows = []
+    for order in orders:
+        order_id = html.escape(str(order.get("order_id", "N/A")))
+        filename = order.get("file_name")
+        download = (
+            f'<a href="/download/{html.escape(str(filename))}" class="btn-download">Download PDF</a>'
+            if filename and filename != "N/A"
+            else '<span class="muted">No file</span>'
+        )
+        rows.append(
+            f"""
+            <tr>
+                <td><strong>{order_id}</strong><small>{html.escape(str(order.get("timestamp", "N/A")))}</small></td>
+                <td><strong>{html.escape(str(order.get("customer_name", "N/A")))}</strong><small>{html.escape(str(order.get("customer_phone", "N/A")))}</small></td>
+                <td>{html.escape(str(order.get("area", "N/A")))}<small>{html.escape(str(order.get("address", "N/A")))}</small></td>
+                <td><span class="status">{html.escape(str(order.get("status", "received")).title())}</span><small>{html.escape(str(order.get("payment_method", "")).upper())} · {html.escape(str(order.get("trx_id", "No TrxID")))}</small></td>
+                <td class="amount">৳ {float(order.get("amount", 0)):.2f}</td>
+                <td>{download}</td>
+            </tr>
+            """
+        )
 
-    rows = ""
-    for o in orders:
-        download_link = f'<a href="/download/{o["file_name"]}" target="_blank" class="btn-download">📄 ডাউনলোড</a>' if o.get("file_name") and o["file_name"] != "N/A" else '<span style="color:#888;">ফাইল নেই</span>'
-        rows += f"""
-        <tr>
-            <td><b style="color:#0F3863;">{o.get('order_id', 'N/A')}</b></td>
-            <td><small>{o.get('timestamp', 'N/A')}</small></td>
-            <td><b>{o.get('customer_name', 'N/A')}</b><br><small style="color:#555;">📞 {o.get('customer_phone', 'N/A')}</small></td>
-            <td>{o.get('address', 'N/A')}</td>
-            <td><span class="badge">{str(o.get('payment_method', '')).upper()}</span><br><small style="color:#333;">Trx: <b>{o.get('trx_id', 'N/A')}</b></small></td>
-            <td style="color:#27ae60; font-weight:bold;">৳ {o.get('amount', 0)}</td>
-            <td>{download_link}</td>
-        </tr>
-        """
-
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="bn">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Admin Dashboard - Mahajan IT Printing Hub</title>
+    return HTMLResponse(
+        f"""<!doctype html>
+        <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Admin · Mahajan IT Printing Hub</title>
         <style>
-            * {{ box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }}
-            body {{ background-color: #f4f7f6; margin: 0; padding: 30px; color: #333; }}
-            .container {{ max-width: 1200px; margin: 0 auto; background: #ffffff; border-radius: 10px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }}
-            .header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0F3863; padding-bottom: 15px; margin-bottom: 20px; }}
-            .header h2 {{ color: #0F3863; margin: 0; font-size: 24px; }}
-            .stats {{ background: #0F3863; color: #fff; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 14px; }}
-            table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
-            th, td {{ padding: 14px 12px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; }}
-            th {{ background-color: #0F3863; color: white; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; }}
-            tr:hover {{ background-color: #f8f9fa; }}
-            .badge {{ background-color: #00A8B5; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }}
-            .btn-download {{ background-color: #E58E26; color: white; padding: 6px 12px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 12px; transition: 0.2s; display: inline-block; }}
-            .btn-download:hover {{ background-color: #d37e1a; }}
-            .no-orders {{ text-align: center; padding: 40px; color: #777; font-size: 16px; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h2>📦 Mahajan IT Printing Hub — Admin Dashboard</h2>
-                <div class="stats">মোট অর্ডার: {len(orders)} টি</div>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>অর্ডার আইডি</th>
-                        <th>তারিখ ও সময়</th>
-                        <th>গ্রাহক তথ্য</th>
-                        <th>ডেলিভারি ঠিকানা</th>
-                        <th>পেমেন্ট & TrxID</th>
-                        <th>মোট বিল</th>
-                        <th>প্রিন্ট ফাইল</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows if rows else '<tr><td colspan="7" class="no-orders">এখনো কোনো অর্ডার রিসিভ হয়নি।</td></tr>'}
-                </tbody>
-            </table>
-        </div>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
+        :root{{font-family:Inter,Segoe UI,sans-serif;color:#10233b;background:#f6f8fb}}*{{box-sizing:border-box}}body{{margin:0;padding:32px}}.shell{{max-width:1400px;margin:auto;background:#fff;border:1px solid #dfe7ef;border-radius:20px;box-shadow:0 18px 50px #10233b12;overflow:hidden}}header{{padding:28px 32px;background:#0f3863;color:#fff;display:flex;justify-content:space-between;gap:20px;align-items:center}}h1{{margin:0;font-size:clamp(1.35rem,3vw,2rem)}}header p{{margin:6px 0 0;color:#d4e4f0}}.count{{background:#00a8b5;padding:10px 14px;border-radius:99px;font-weight:800;white-space:nowrap}}.table-wrap{{overflow:auto}}table{{width:100%;border-collapse:collapse;min-width:920px}}th,td{{padding:16px 18px;text-align:left;border-bottom:1px solid #e8eef4;vertical-align:top}}th{{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:#52708b;background:#f8fafc}}td strong{{display:block;color:#0f3863}}td small{{display:block;margin-top:5px;color:#6b8194;line-height:1.45}}.status{{display:inline-block;background:#e6f8f6;color:#087c7e;padding:5px 9px;border-radius:99px;font-size:.75rem;font-weight:800}}.amount{{font-weight:800;color:#d37d19;white-space:nowrap}}.btn-download{{display:inline-block;padding:9px 12px;background:#0f3863;color:#fff;border-radius:8px;text-decoration:none;font-size:.8rem;font-weight:700}}.muted{{color:#9aa8b4;font-size:.85rem}}@media(max-width:700px){{body{{padding:12px}}header{{padding:22px;align-items:flex-start;flex-direction:column}}}}
+        </style></head><body><main class="shell"><header><div><h1>Mahajan IT Printing Hub</h1><p>Incoming orders · Admin dashboard</p></div><div class="count">{len(orders)} orders</div></header>
+        <div class="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Delivery</th><th>Payment / status</th><th>Total</th><th>File</th></tr></thead><tbody>
+        {''.join(rows) if rows else '<tr><td colspan="6" style="text-align:center;padding:56px;color:#6b8194">No orders received yet.</td></tr>'}
+        </tbody></table></div></main></body></html>"""
+    )
+
 
 @app.get("/download/{file_name}")
 async def download_file(file_name: str):
-    file_path = os.path.join(UPLOAD_DIR, file_name)
-    if os.path.exists(file_path):
-        return FileResponse(path=file_path, filename=file_name)
-    raise HTTPException(status_code=404, detail="File not found")
+    safe_name = os.path.basename(file_name)
+    file_path = os.path.join(UPLOAD_DIR, safe_name)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(path=file_path, filename=safe_name, media_type="application/pdf")
 
-STATIC_DIR = "static"
-os.makedirs(STATIC_DIR, exist_ok=True)
-app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
