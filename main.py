@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -56,6 +57,14 @@ ALLOWED_COLOR_TYPES = {"bw", "color"}
 ALLOWED_SIDES = {"single", "double"}
 ALLOWED_BINDINGS = set(BINDING_RATES)
 ALLOWED_DELIVERY = set(DELIVERY_RATES)
+ORDER_STATUSES = [
+    "Order Received",
+    "Printing in Progress",
+    "Binding & Finishing",
+    "Ready for Pickup",
+    "Delivered",
+]
+LEGACY_STATUS_MAP = {"received": "Order Received"}
 temp_file_store: dict[str, dict[str, Any]] = {}
 
 
@@ -63,7 +72,20 @@ def read_orders() -> list[dict[str, Any]]:
     try:
         with open(ORDERS_FILE, "r", encoding="utf-8") as orders_file:
             data = json.load(orders_file)
-        return data if isinstance(data, list) else []
+        if not isinstance(data, list):
+            return []
+        changed = False
+        for order in data:
+            current_status = order.get("status", "Order Received")
+            normalized_status = LEGACY_STATUS_MAP.get(current_status, current_status)
+            if normalized_status not in ORDER_STATUSES:
+                normalized_status = "Order Received"
+            if order.get("status") != normalized_status:
+                order["status"] = normalized_status
+                changed = True
+        if changed:
+            write_orders(data)
+        return data
     except (OSError, json.JSONDecodeError):
         return []
 
@@ -202,7 +224,7 @@ async def process_checkout(
         "payment_method": payment_method,
         "trx_id": trx_id.strip(),
         "amount": expected_amount,
-        "status": "received",
+        "status": "Order Received",
         "file_name": saved_filename,
         "details": session_data["details"],
     }
@@ -218,6 +240,7 @@ async def process_checkout(
     }
 
 
+@app.get("/api/orders/track/{order_id}")
 @app.get("/api/track/{order_id}")
 async def track_order(order_id: str):
     order = next((item for item in read_orders() if item.get("order_id") == order_id.strip().upper()), None)
@@ -226,10 +249,41 @@ async def track_order(order_id: str):
     return {
         "status": "success",
         "order_id": order["order_id"],
-        "status_code": order.get("status", "received"),
+        "status_code": order.get("status", "Order Received"),
+        "status_label": order.get("status", "Order Received"),
         "timestamp": order.get("timestamp"),
         "amount": order.get("amount", 0),
         "customer_name": order.get("customer_name", ""),
+        "paper_size": order.get("details", {}).get("paper_size"),
+        "page_count": order.get("details", {}).get("page_count"),
+    }
+
+
+class OrderStatusUpdate(BaseModel):
+    order_id: str
+    status: str
+
+
+@app.post("/api/admin/orders/update-status")
+@app.patch("/api/admin/orders/update-status")
+async def update_order_status(payload: OrderStatusUpdate):
+    order_id = payload.order_id.strip().upper()
+    if payload.status not in ORDER_STATUSES:
+        raise HTTPException(status_code=400, detail="Invalid order status.")
+
+    orders = read_orders()
+    order = next((item for item in orders if item.get("order_id") == order_id), None)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found.")
+
+    order["status"] = payload.status
+    order["status_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    write_orders(orders)
+    return {
+        "status": "success",
+        "order_id": order_id,
+        "order_status": payload.status,
+        "updated_at": order["status_updated_at"],
     }
 
 
@@ -245,29 +299,85 @@ async def admin_panel():
             if filename and filename != "N/A"
             else '<span class="muted">No file</span>'
         )
+        order_status = order.get("status", "Order Received")
+        status_options = "".join(
+            f'<option value="{html.escape(status)}" {"selected" if status == order_status else ""}>{html.escape(status)}</option>'
+            for status in ORDER_STATUSES
+        )
         rows.append(
             f"""
-            <tr>
+            <tr class="order-row" data-status="{html.escape(order_status)}">
                 <td><strong>{order_id}</strong><small>{html.escape(str(order.get("timestamp", "N/A")))}</small></td>
                 <td><strong>{html.escape(str(order.get("customer_name", "N/A")))}</strong><small>{html.escape(str(order.get("customer_phone", "N/A")))}</small></td>
                 <td>{html.escape(str(order.get("area", "N/A")))}<small>{html.escape(str(order.get("address", "N/A")))}</small></td>
-                <td><span class="status">{html.escape(str(order.get("status", "received")).title())}</span><small>{html.escape(str(order.get("payment_method", "")).upper())} · {html.escape(str(order.get("trx_id", "No TrxID")))}</small></td>
+                <td><select class="status-select" data-order-id="{order_id}">{status_options}</select><small class="status-meta">{html.escape(str(order.get("payment_method", "")).upper())} · {html.escape(str(order.get("trx_id", "No TrxID")))}</small></td>
                 <td class="amount">৳ {float(order.get("amount", 0)):.2f}</td>
                 <td>{download}</td>
             </tr>
             """
         )
 
+    order_rows = "".join(rows) if rows else '<tr class="empty-row"><td colspan="6">No orders received yet.</td></tr>'
     return HTMLResponse(
         f"""<!doctype html>
         <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
         <title>Admin · Mahajan IT Printing Hub</title>
         <style>
-        :root{{font-family:Inter,Segoe UI,sans-serif;color:#10233b;background:#f6f8fb}}*{{box-sizing:border-box}}body{{margin:0;padding:32px}}.shell{{max-width:1400px;margin:auto;background:#fff;border:1px solid #dfe7ef;border-radius:20px;box-shadow:0 18px 50px #10233b12;overflow:hidden}}header{{padding:28px 32px;background:#0f3863;color:#fff;display:flex;justify-content:space-between;gap:20px;align-items:center}}h1{{margin:0;font-size:clamp(1.35rem,3vw,2rem)}}header p{{margin:6px 0 0;color:#d4e4f0}}.count{{background:#00a8b5;padding:10px 14px;border-radius:99px;font-weight:800;white-space:nowrap}}.table-wrap{{overflow:auto}}table{{width:100%;border-collapse:collapse;min-width:920px}}th,td{{padding:16px 18px;text-align:left;border-bottom:1px solid #e8eef4;vertical-align:top}}th{{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:#52708b;background:#f8fafc}}td strong{{display:block;color:#0f3863}}td small{{display:block;margin-top:5px;color:#6b8194;line-height:1.45}}.status{{display:inline-block;background:#e6f8f6;color:#087c7e;padding:5px 9px;border-radius:99px;font-size:.75rem;font-weight:800}}.amount{{font-weight:800;color:#d37d19;white-space:nowrap}}.btn-download{{display:inline-block;padding:9px 12px;background:#0f3863;color:#fff;border-radius:8px;text-decoration:none;font-size:.8rem;font-weight:700}}.muted{{color:#9aa8b4;font-size:.85rem}}@media(max-width:700px){{body{{padding:12px}}header{{padding:22px;align-items:flex-start;flex-direction:column}}}}
-        </style></head><body><main class="shell"><header><div><h1>Mahajan IT Printing Hub</h1><p>Incoming orders · Admin dashboard</p></div><div class="count">{len(orders)} orders</div></header>
-        <div class="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Delivery</th><th>Payment / status</th><th>Total</th><th>File</th></tr></thead><tbody>
-        {''.join(rows) if rows else '<tr><td colspan="6" style="text-align:center;padding:56px;color:#6b8194">No orders received yet.</td></tr>'}
-        </tbody></table></div></main></body></html>"""
+        :root{{font-family:Inter,Segoe UI,sans-serif;color:#10233b;background:#f6f8fb}}*{{box-sizing:border-box}}body{{margin:0;padding:32px}}.shell{{max-width:1400px;margin:auto;background:#fff;border:1px solid #dfe7ef;border-radius:20px;box-shadow:0 18px 50px #10233b12;overflow:hidden}}header{{padding:28px 32px;background:#0f3863;color:#fff;display:flex;justify-content:space-between;gap:20px;align-items:center}}h1{{margin:0;font-size:clamp(1.35rem,3vw,2rem)}}header p{{margin:6px 0 0;color:#d4e4f0}}.count{{background:#00a8b5;padding:10px 14px;border-radius:99px;font-weight:800;white-space:nowrap}}.filters{{display:flex;gap:10px;padding:20px 24px;border-bottom:1px solid #e8eef4}}.filter{{border:1px solid #dfe7ef;background:#fff;color:#52708b;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer}}.filter.active{{background:#0f3863;color:#fff;border-color:#0f3863}}.table-wrap{{overflow:auto}}table{{width:100%;border-collapse:collapse;min-width:980px}}th,td{{padding:16px 18px;text-align:left;border-bottom:1px solid #e8eef4;vertical-align:top}}th{{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:#52708b;background:#f8fafc}}td strong{{display:block;color:#0f3863}}td small{{display:block;margin-top:5px;color:#6b8194;line-height:1.45}}.status-select{{min-height:38px;border:1px solid #cdd9e4;border-radius:8px;background:#fff;color:#0f3863;padding:6px 9px;font-weight:800;max-width:210px}}.status-select:focus{{border-color:#00a8b5;outline:3px solid #00a8b522}}.status-select.saving{{opacity:.6}}.status-select.saved{{border-color:#00a8b5;background:#e8fbfa}}.status-select.failed{{border-color:#d94b4b;background:#fff1f1}}.amount{{font-weight:800;color:#d37d19;white-space:nowrap}}.btn-download{{display:inline-block;padding:9px 12px;background:#0f3863;color:#fff;border-radius:8px;text-decoration:none;font-size:.8rem;font-weight:700}}.muted{{color:#9aa8b4;font-size:.85rem}}.empty-row td{{text-align:center;padding:56px;color:#6b8194}}@media(max-width:700px){{body{{padding:12px}}header{{padding:22px;align-items:flex-start;flex-direction:column}}.filters{{padding:16px;overflow:auto}}}}
+        </style></head><body><main class="shell"><header><div><h1>Mahajan IT Printing Hub</h1><p>Incoming orders · Admin dashboard</p></div><div class="count"><span id="orderCount">{len(orders)} orders</span></div></header>
+        <div class="filters"><button class="filter active" data-filter="active">Active Orders</button><button class="filter" data-filter="completed">Completed Orders</button></div>
+        <div class="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Delivery</th><th>Payment / status</th><th>Total</th><th>File</th></tr></thead><tbody id="ordersBody">
+        {order_rows}
+        </tbody></table></div></main><script>
+        const statuses = {json.dumps(ORDER_STATUSES)};
+        const emptyRow = '<tr class="empty-row"><td colspan="6">No orders in this view.</td></tr>';
+        function applyFilter(filter) {{
+          const rows = [...document.querySelectorAll('.order-row')];
+          let visible = 0;
+          rows.forEach(row => {{
+            const isCompleted = row.dataset.status === 'Delivered';
+            const show = filter === 'completed' ? isCompleted : !isCompleted;
+            row.style.display = show ? '' : 'none';
+            if (show) visible++;
+          }});
+          document.querySelector('.empty-row')?.remove();
+          if (!visible) document.querySelector('#ordersBody').insertAdjacentHTML('beforeend', emptyRow);
+          document.querySelector('#orderCount').textContent = `${{visible}} ${{visible === 1 ? 'order' : 'orders'}}`;
+        }}
+        document.querySelectorAll('.filter').forEach(button => button.addEventListener('click', () => {{
+          document.querySelectorAll('.filter').forEach(item => item.classList.remove('active'));
+          button.classList.add('active');
+          applyFilter(button.dataset.filter);
+        }}));
+        document.querySelectorAll('.status-select').forEach(select => select.addEventListener('change', async () => {{
+          const previous = select.dataset.previous || select.value;
+          select.dataset.previous = previous;
+          select.classList.add('saving');
+          try {{
+            const response = await fetch('/api/admin/orders/update-status', {{
+              method: 'PATCH',
+              headers: {{'Content-Type': 'application/json'}},
+              body: JSON.stringify({{order_id: select.dataset.orderId, status: select.value}})
+            }});
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || 'Could not update status.');
+            select.closest('tr').dataset.status = data.order_status;
+            select.classList.remove('failed');
+            select.classList.add('saved');
+            select.dataset.previous = data.order_status;
+            const activeFilter = document.querySelector('.filter.active').dataset.filter;
+            applyFilter(activeFilter);
+            setTimeout(() => select.classList.remove('saved'), 1200);
+          }} catch (error) {{
+            select.value = previous;
+            select.classList.add('failed');
+            alert(error.message);
+          }} finally {{
+            select.classList.remove('saving');
+          }}
+        }}));
+        applyFilter('active');
+        </script></body></html>"""
     )
 
 

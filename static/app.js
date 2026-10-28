@@ -167,10 +167,10 @@ async function trackOrder(event) {
   result.classList.remove('hidden');
   result.innerHTML = '<p class="text-sm font-semibold text-slate-500">Checking your order...</p>';
   try {
-    const response = await fetch(`/api/track/${encodeURIComponent(orderId)}`);
+    const response = await fetch(`/api/orders/track/${encodeURIComponent(orderId)}`);
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || 'Order not found.');
-    result.innerHTML = `<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><span class="text-xs font-extrabold uppercase tracking-[.12em] text-teal">Order ${data.order_id}</span><h3 class="mt-1 text-xl font-extrabold text-navy">${data.customer_name || 'Customer'} · ${data.status_code.replace('_', ' ')}</h3><p class="mt-1 text-sm text-slate-500">Placed ${data.timestamp} · Total ${money(data.amount)}</p></div><span class="inline-flex w-fit items-center gap-2 rounded-full bg-teal/10 px-3 py-2 text-sm font-extrabold capitalize text-teal"><span class="h-2 w-2 rounded-full bg-teal"></span>${data.status_code.replace('_', ' ')}</span></div>`;
+    result.innerHTML = `<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><span class="text-xs font-extrabold uppercase tracking-[.12em] text-teal">Order ${data.order_id}</span><h3 class="mt-1 text-xl font-extrabold text-navy">${data.customer_name || 'Customer'}</h3><p class="mt-1 text-sm text-slate-500">Placed ${data.timestamp} · Total ${money(data.amount)}${data.page_count ? ` · ${data.page_count} pages` : ''}</p></div><span class="inline-flex w-fit items-center gap-2 rounded-full bg-teal/10 px-3 py-2 text-sm font-extrabold text-teal"><span class="h-2 w-2 rounded-full bg-teal"></span>${data.status_label}</span></div>`;
   } catch (error) {
     result.innerHTML = `<p class="text-sm font-semibold text-red-600">${error.message}</p>`;
   }

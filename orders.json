@@ -8,7 +8,8 @@
     "payment_method": "bkash",
     "trx_id": "",
     "amount": 269.4,
-    "file_name": "MICL-C8BA40DE_Maha_Alam_CV.pdf"
+    "file_name": "MICL-C8BA40DE_Maha_Alam_CV.pdf",
+    "status": "Order Received"
   },
   {
     "order_id": "MICL-CCAA7B38",
@@ -19,6 +20,7 @@
     "payment_method": "bkash",
     "trx_id": "",
     "amount": 73.6,
-    "file_name": "N/A"
+    "file_name": "N/A",
+    "status": "Order Received"
   }
 ]
