@@ -1,172 +1,182 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="bn">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mahajan IT Printing Hub - Concern of MICL</title>
-    <style>
-        :root {
-            --primary: #0F3863;
-            --accent: #00A8B5;
-            --gold: #E58E26;
-            --bg: #F4F7F9;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Upload, customize, pay, and receive your documents from Mahajan IT Printing Hub in Nilkhet, Dhaka.">
+  <title>Mahajan IT Printing Hub · Order online</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { navy: '#0F3863', teal: '#00A8B5', gold: '#E58E26', ink: '#10233B', paper: '#F6F8FB' },
+          fontFamily: { sans: ['Plus Jakarta Sans', 'Inter', 'ui-sans-serif', 'system-ui'] },
+          boxShadow: { lift: '0 20px 60px rgba(15, 56, 99, .12)', navy: '0 18px 44px rgba(15, 56, 99, .25)' }
         }
-        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .header { text-align: center; border-bottom: 2px solid var(--accent); padding-bottom: 15px; margin-bottom: 20px; }
-        .header h1 { color: var(--primary); margin: 0; font-size: 26px; }
-        .header p { color: var(--gold); margin: 5px 0 0 0; font-weight: bold; }
-        .hours-badge { background: #e3f2fd; color: var(--primary); padding: 5px 12px; border-radius: 20px; font-size: 13px; display: inline-block; margin-top: 8px; }
-        
-        .section-box { background: #fafafa; border: 1px solid #e0e0e0; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
-        .form-group { margin-bottom: 12px; }
-        label { display: block; font-weight: 600; margin-bottom: 5px; color: var(--primary); }
-        select, input[type="text"], input[type="file"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
-        
-        .whatsapp-alert { display: none; background: #ffebee; border: 1px solid #ffcdd2; color: #c62828; padding: 15px; border-radius: 8px; text-align: center; margin-top: 10px; }
-        .whatsapp-btn { background-color: #25D366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; margin-top: 10px; }
-
-        .price-summary { background: var(--primary); color: white; padding: 20px; border-radius: 8px; margin-top: 20px; }
-        .price-summary table { width: 100%; border-collapse: collapse; }
-        .price-summary td { padding: 6px 0; }
-        .price-summary .total { font-size: 20px; font-weight: bold; border-top: 1px solid var(--accent); padding-top: 10px; color: var(--gold); }
-
-        .payment-box { background: #e8f5e9; border: 1px solid #a5d6a7; padding: 15px; border-radius: 8px; margin-top: 15px; }
-        .btn-submit { background: var(--gold); color: white; border: none; padding: 12px 25px; width: 100%; font-size: 18px; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 15px; }
-        .btn-submit:hover { background: #d47e19; }
-    </style>
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root { color-scheme: light; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Instrument Sans', Inter, system-ui, sans-serif; background: #f6f8fb; color: #10233b; }
+    .mesh { background: #0d162a; }
+    .step-panel[hidden], .wizard-step[hidden] { display: none; }
+    .field { width: 100%; min-height: 48px; border: 1px solid #d6e0e9; border-radius: 12px; background: #fff; padding: 12px 14px; color: #10233b; outline: none; transition: .2s ease; }
+    .field:focus { border-color: #00a8b5; box-shadow: 0 0 0 4px rgba(0,168,181,.14); }
+    .field::placeholder { color: #8395a6; }
+    .choice input:checked + span { border-color: #00a8b5; background: #e8fbfa; color: #075e69; box-shadow: inset 0 0 0 1px #00a8b5; }
+    .choice span { transition: .2s ease; }
+    .drop-zone.dragover { border-color: #00a8b5; background: #e8fbfa; transform: translateY(-2px); }
+    .animate-in { animation: rise .55s cubic-bezier(.16,1,.3,1) both; }
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+    @media print { .no-print { display: none !important; } #receipt { box-shadow: none; border: 0; } body { background: #fff; } }
+  </style>
 </head>
 <body>
+  <a href="https://wa.me/8801839802001" target="_blank" rel="noreferrer" aria-label="WhatsApp support" class="fixed z-50 bottom-5 right-5 grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-white shadow-lg transition hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-[#25D366]/30 no-print">
+    <i data-lucide="message-circle" class="h-7 w-7"></i>
+  </a>
 
-<div class="container">
-    <div class="header">
-        <h1>Mahajan IT Printing Hub</h1>
-        <p>A Concern of Mahajan IT Consultancy & Logistics (MICL)</p>
-        <span class="hours-badge">🕒 খোলা: প্রতিদিন সকাল ৯:০০ - রাত ১০:০০ (সরকারি ছুটি ব্যতীত)</span>
+  <header id="home" class="mesh no-print text-white">
+    <nav class="mx-auto flex max-w-7xl items-center justify-between border-b border-white/10 px-5 py-5 lg:px-8">
+      <a href="#" class="flex items-center gap-3" aria-label="Mahajan IT Printing Hub home">
+        <span class="grid h-11 w-11 place-items-center rounded-xl bg-[#2463e8] text-white shadow-lg shadow-[#2463e8]/30"><i data-lucide="printer" class="h-5 w-5"></i></span>
+        <span><strong class="block text-sm font-extrabold tracking-tight sm:text-base">Mahajan IT</strong><small class="block text-[10px] font-semibold uppercase tracking-[.12em] text-[#4184ff]">PRINTING HUB</small></span>
+      </a>
+      <div class="hidden items-center gap-8 text-sm font-medium text-slate-300 md:flex">
+        <a href="#home" class="transition hover:text-white">Home</a>
+        <a href="#order" class="transition hover:text-white">Services</a>
+        <a href="#pricing" class="transition hover:text-white">Pricing</a>
+        <a href="#contact" class="transition hover:text-white">Contact Us</a>
+      </div>
+      <a href="https://wa.me/8801839802001" target="_blank" rel="noreferrer" class="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#00a878] px-4 py-2 text-sm font-extrabold text-white shadow-lg shadow-[#00a878]/20 transition hover:-translate-y-0.5"><i data-lucide="message-square" class="h-4 w-4"></i><span class="hidden sm:inline">Chat on WhatsApp</span><span class="sm:hidden">WhatsApp</span></a>
+    </nav>
+    <div class="mx-auto flex max-w-5xl flex-col items-center px-5 pb-14 pt-12 text-center sm:pb-16 sm:pt-16 lg:pb-20">
+      <p class="inline-flex items-center gap-2 rounded-full border border-[#2463e8]/60 bg-[#142655] px-4 py-2 text-xs font-semibold tracking-wide text-[#58a0ff]"><span class="h-2 w-2 rounded-full bg-[#00c98b]"></span> Now Serving All of Dhaka</p>
+      <h1 class="mt-7 max-w-5xl text-4xl font-extrabold leading-[1.03] tracking-[-.055em] sm:text-6xl lg:text-7xl">Fast &amp; Reliable Online Printing in <span class="block text-[#3d7cff]">Nilkhet</span></h1>
+      <p class="mt-6 max-w-2xl text-base leading-7 text-[#8fa6cc] sm:text-lg">Upload your PDF files, calculate costs instantly, and get high-quality printed documents delivered straight to your doorstep across Dhaka city.</p>
+      <div class="mt-9 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
+        <a id="startUpload" href="#order" class="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl bg-[#2867ec] px-6 text-base font-extrabold text-white shadow-xl shadow-[#2867ec]/25 transition hover:-translate-y-0.5 hover:bg-[#3473f5]"><i data-lucide="upload-cloud" class="h-5 w-5"></i> Upload &amp; Print Now</a>
+        <a href="#pricing" class="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl border border-[#32415a] bg-[#19253a] px-6 text-base font-extrabold text-[#f6f8fb] transition hover:-translate-y-0.5 hover:border-[#536783]"><span>View Pricing</span><i data-lucide="arrow-right" class="h-5 w-5"></i></a>
+      </div>
+      <div class="mt-8 grid w-full max-w-3xl grid-cols-1 gap-4 border-t border-white/10 pt-7 text-sm text-[#9eb0ca] sm:grid-cols-3 sm:gap-2">
+        <span class="inline-flex items-center justify-center gap-2"><i data-lucide="calculator" class="h-4 w-4 text-[#00c98b]"></i> Instant Cost Calculator</span>
+        <span class="inline-flex items-center justify-center gap-2"><i data-lucide="wallet-cards" class="h-4 w-4 text-[#00c98b]"></i> bKash &amp; Nagad Accepted</span>
+        <span class="inline-flex items-center justify-center gap-2"><i data-lucide="truck" class="h-4 w-4 text-[#00c98b]"></i> Same-Day Delivery</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-7xl px-5 py-10 lg:px-8 lg:py-16">
+    <div id="pricing" class="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <section id="order" class="min-w-0">
+        <div class="mb-6 flex items-end justify-between gap-4">
+          <div><p class="text-xs font-extrabold uppercase tracking-[.14em] text-teal">Start an order</p><h2 class="mt-2 text-3xl font-extrabold tracking-tight text-navy sm:text-4xl">Print desk, now online.</h2></div>
+          <span id="stepCounter" class="rounded-full bg-white px-3 py-2 text-xs font-bold text-slate-500 shadow-sm">Step 1 of 4</span>
+        </div>
+        <div class="mb-7 grid grid-cols-4 gap-2" aria-label="Order progress">
+          <div class="progress-step rounded-xl bg-navy p-3 text-white" data-step="1"><span class="block text-xs font-extrabold">01</span><span class="mt-1 hidden text-[11px] font-semibold sm:block">Upload</span></div>
+          <div class="progress-step rounded-xl bg-white p-3 text-slate-400" data-step="2"><span class="block text-xs font-extrabold">02</span><span class="mt-1 hidden text-[11px] font-semibold sm:block">Customize</span></div>
+          <div class="progress-step rounded-xl bg-white p-3 text-slate-400" data-step="3"><span class="block text-xs font-extrabold">03</span><span class="mt-1 hidden text-[11px] font-semibold sm:block">Delivery</span></div>
+          <div class="progress-step rounded-xl bg-white p-3 text-slate-400" data-step="4"><span class="block text-xs font-extrabold">04</span><span class="mt-1 hidden text-[11px] font-semibold sm:block">Payment</span></div>
+        </div>
+
+        <div id="orderError" class="mb-5 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" role="alert"></div>
+        <form id="orderForm" novalidate>
+          <div class="step-panel rounded-[24px] border border-slate-200 bg-white p-5 shadow-lift sm:p-8" data-panel="1">
+            <div class="mb-7"><h3 class="text-2xl font-extrabold tracking-tight text-navy">Bring your file</h3><p class="mt-2 text-sm leading-6 text-slate-500">PDF only, up to 50 MB. Your file stays attached to this order for our print team.</p></div>
+            <label id="dropZone" for="pdfFile" class="drop-zone flex min-h-64 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-paper px-5 text-center transition hover:border-teal hover:bg-teal/5">
+              <span class="grid h-16 w-16 place-items-center rounded-2xl bg-white text-teal shadow-sm"><i data-lucide="cloud-upload" class="h-8 w-8"></i></span>
+              <strong class="mt-5 text-base font-extrabold text-navy">Drop your PDF here</strong>
+              <span class="mt-2 text-sm text-slate-500">or <span class="font-bold text-teal">browse your device</span></span>
+              <span class="mt-4 rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">Maximum 50 MB</span>
+              <input id="pdfFile" class="sr-only" type="file" accept="application/pdf,.pdf" required>
+            </label>
+            <div id="fileMeta" class="mt-4 hidden items-center justify-between gap-3 rounded-xl border border-teal/20 bg-teal/5 px-4 py-3"><div class="flex min-w-0 items-center gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-teal text-white"><i data-lucide="file-text" class="h-4 w-4"></i></span><div class="min-w-0"><strong id="fileName" class="block truncate text-sm text-navy"></strong><small id="fileSize" class="text-xs text-slate-500"></small></div></div><button id="removeFile" type="button" class="rounded-lg p-2 text-slate-400 hover:bg-white hover:text-red-500" aria-label="Remove file"><i data-lucide="x" class="h-4 w-4"></i></button></div>
+            <div id="largeFileNotice" class="mt-4 hidden rounded-xl border border-gold/30 bg-gold/10 p-4 text-sm text-ink"><strong class="block text-gold">This PDF is over 50 MB.</strong><span class="mt-1 block leading-6">Please send it directly to WhatsApp so our team can help you faster.</span><a class="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#25D366] px-4 py-2 font-bold text-white" href="https://wa.me/8801839802001" target="_blank" rel="noreferrer"><i data-lucide="message-circle" class="h-4 w-4"></i> WhatsApp support</a></div>
+            <div class="mt-8 flex justify-end"><button id="toStep2" type="button" disabled class="inline-flex min-h-12 items-center gap-2 rounded-xl bg-teal px-5 font-extrabold text-white shadow-lg shadow-teal/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40">Continue to customize <i data-lucide="arrow-right" class="h-4 w-4"></i></button></div>
+          </div>
+
+          <div class="step-panel hidden rounded-[24px] border border-slate-200 bg-white p-5 shadow-lift sm:p-8" data-panel="2">
+            <div class="mb-7"><h3 class="text-2xl font-extrabold tracking-tight text-navy">Make it yours</h3><p class="mt-2 text-sm leading-6 text-slate-500">Choose the paper and finish that fits your document.</p></div>
+            <div class="grid gap-6 sm:grid-cols-2">
+              <fieldset><legend class="mb-3 text-sm font-extrabold text-navy">Paper size</legend><div class="grid grid-cols-2 gap-3"><label class="choice cursor-pointer"><input class="sr-only" type="radio" name="paper_size" value="A4" checked><span class="block rounded-xl border border-slate-200 p-4"><strong class="block">A4</strong><small class="mt-1 block text-xs text-slate-500">210 × 297 mm</small></span></label><label class="choice cursor-pointer"><input class="sr-only" type="radio" name="paper_size" value="Legal"><span class="block rounded-xl border border-slate-200 p-4"><strong class="block">Legal</strong><small class="mt-1 block text-xs text-slate-500">216 × 356 mm</small></span></label></div></fieldset>
+              <label class="block"><span class="mb-3 block text-sm font-extrabold text-navy">Paper weight</span><select id="gsm" class="field"><option value="70">70 GSM · Light</option><option value="80" selected>80 GSM · Standard</option><option value="100">100 GSM · Premium</option></select></label>
+              <fieldset><legend class="mb-3 text-sm font-extrabold text-navy">Print mode</legend><div class="grid grid-cols-2 gap-3"><label class="choice cursor-pointer"><input class="sr-only" type="radio" name="color_type" value="bw" checked><span class="block rounded-xl border border-slate-200 p-4"><strong class="block">B&W</strong><small class="mt-1 block text-xs text-slate-500">Sharp & economical</small></span></label><label class="choice cursor-pointer"><input class="sr-only" type="radio" name="color_type" value="color"><span class="block rounded-xl border border-slate-200 p-4"><strong class="block">Color</strong><small class="mt-1 block text-xs text-slate-500">Vivid & clear</small></span></label></div></fieldset>
+              <fieldset><legend class="mb-3 text-sm font-extrabold text-navy">Print sides</legend><div class="grid grid-cols-2 gap-3"><label class="choice cursor-pointer"><input class="sr-only" type="radio" name="print_side" value="single" checked><span class="block rounded-xl border border-slate-200 p-4"><strong class="block">Single</strong><small class="mt-1 block text-xs text-slate-500">One side per sheet</small></span></label><label class="choice cursor-pointer"><input class="sr-only" type="radio" name="print_side" value="double"><span class="block rounded-xl border border-slate-200 p-4"><strong class="block">Both sides</strong><small class="mt-1 block text-xs text-slate-500">Double-sided</small></span></label></div></fieldset>
+            </div>
+            <label class="mt-6 block"><span class="mb-3 block text-sm font-extrabold text-navy">Binding</span><select id="binding" class="field"><option value="staple" selected>Staple binding · Free</option><option value="spiral">Spiral binding · ৳70</option><option value="hardcover">Hardcover binding · ৳150</option><option value="none">No binding · ৳0</option></select></label>
+            <div class="mt-8 flex flex-col-reverse justify-between gap-3 sm:flex-row"><button type="button" class="back-btn inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 font-extrabold text-navy transition hover:bg-paper"><i data-lucide="arrow-left" class="h-4 w-4"></i> Back</button><button type="button" class="next-btn inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-teal px-5 font-extrabold text-white shadow-lg shadow-teal/20 transition hover:-translate-y-0.5">Continue to delivery <i data-lucide="arrow-right" class="h-4 w-4"></i></button></div>
+          </div>
+
+          <div class="step-panel hidden rounded-[24px] border border-slate-200 bg-white p-5 shadow-lift sm:p-8" data-panel="3">
+            <div class="mb-7"><h3 class="text-2xl font-extrabold tracking-tight text-navy">Where should it go?</h3><p class="mt-2 text-sm leading-6 text-slate-500">Our team will use these details to prepare your delivery.</p></div>
+            <div class="grid gap-5 sm:grid-cols-2"><label><span class="mb-2 block text-sm font-extrabold text-navy">Your name *</span><input id="customerName" class="field" placeholder="e.g. Maha Alam" required></label><label><span class="mb-2 block text-sm font-extrabold text-navy">Phone number *</span><input id="customerPhone" class="field" type="tel" placeholder="01XXXXXXXXX" required></label><label class="sm:col-span-2"><span class="mb-2 block text-sm font-extrabold text-navy">Detailed address *</span><textarea id="address" class="field min-h-28 resize-y" placeholder="House, road, building, landmark..." required></textarea></label><label><span class="mb-2 block text-sm font-extrabold text-navy">Area / Thana</span><input id="area" class="field" placeholder="e.g. Dhanmondi"></label><label><span class="mb-2 block text-sm font-extrabold text-navy">Delivery option</span><select id="deliveryOption" class="field"><option value="dhaka">Dhaka delivery · ৳60</option><option value="outside_dhaka">Outside Dhaka · ৳160</option><option value="pickup">Pickup from Nilkhet · Free</option></select></label><label class="sm:col-span-2"><span class="mb-2 block text-sm font-extrabold text-navy">Special instructions</span><textarea id="instructions" class="field min-h-24 resize-y" placeholder="Any folding, timing, or delivery note?"></textarea></label></div>
+            <div class="mt-8 flex flex-col-reverse justify-between gap-3 sm:flex-row"><button type="button" class="back-btn inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 font-extrabold text-navy transition hover:bg-paper"><i data-lucide="arrow-left" class="h-4 w-4"></i> Back</button><button type="button" class="next-btn inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-teal px-5 font-extrabold text-white shadow-lg shadow-teal/20 transition hover:-translate-y-0.5">Review & pay <i data-lucide="arrow-right" class="h-4 w-4"></i></button></div>
+          </div>
+
+          <div class="step-panel hidden rounded-[24px] border border-slate-200 bg-white p-5 shadow-lift sm:p-8" data-panel="4">
+            <div class="mb-7"><h3 class="text-2xl font-extrabold tracking-tight text-navy">Review and confirm</h3><p class="mt-2 text-sm leading-6 text-slate-500">Send payment to <strong>01839802001</strong> via bKash, Nagad, or Bangla QR, then add your TrxID.</p></div>
+            <div class="rounded-2xl border border-gold/30 bg-gold/10 p-4 text-sm leading-6 text-ink"><strong class="flex items-center gap-2 text-gold"><i data-lucide="wallet" class="h-4 w-4"></i> Payment instructions</strong><span class="mt-1 block">Use Send Money / Payment to 01839802001. Cash on delivery is also available for Dhaka orders.</span></div>
+            <div id="reviewSummary" class="mt-5 grid gap-3 rounded-2xl bg-paper p-5 text-sm"></div>
+            <div class="mt-5 grid gap-5 sm:grid-cols-2"><label><span class="mb-2 block text-sm font-extrabold text-navy">Payment method *</span><select id="paymentMethod" class="field"><option value="bkash">bKash · 01839802001</option><option value="nagad">Nagad · 01839802001</option><option value="bangla_qr">Bangla QR</option><option value="cod">Cash on delivery</option></select></label><label><span class="mb-2 block text-sm font-extrabold text-navy">Transaction ID</span><input id="trxId" class="field" placeholder="Required for digital payment"></label></div>
+            <p id="paymentHint" class="mt-3 text-xs leading-5 text-slate-500">For digital payment, enter the TrxID so we can match your payment quickly.</p>
+            <div class="mt-8 flex flex-col-reverse justify-between gap-3 sm:flex-row"><button type="button" class="back-btn inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 font-extrabold text-navy transition hover:bg-paper"><i data-lucide="arrow-left" class="h-4 w-4"></i> Back</button><button id="submitOrder" type="submit" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-gold px-5 font-extrabold text-white shadow-lg shadow-gold/20 transition hover:-translate-y-0.5"><i data-lucide="check-circle-2" class="h-4 w-4"></i> Confirm order</button></div>
+          </div>
+        </form>
+
+        <section id="receipt" class="mt-6 hidden rounded-[24px] border border-teal/30 bg-white p-6 shadow-lift sm:p-8" aria-live="polite">
+          <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between"><div><span class="inline-flex items-center gap-2 rounded-full bg-teal/10 px-3 py-1 text-xs font-extrabold uppercase tracking-[.12em] text-teal"><i data-lucide="check" class="h-3.5 w-3.5"></i> Order received</span><h2 class="mt-4 text-3xl font-extrabold tracking-tight text-navy">We’re on it.</h2><p id="receiptMessage" class="mt-2 text-sm leading-6 text-slate-500"></p></div><button type="button" onclick="window.print()" class="no-print inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-extrabold text-navy hover:bg-paper"><i data-lucide="printer" class="h-4 w-4"></i> Print receipt</button></div><div class="mt-7 rounded-2xl bg-navy p-5 text-white"><span class="text-xs font-bold uppercase tracking-[.14em] text-blue-200">Your order ID</span><strong id="receiptOrderId" class="mt-2 block text-4xl font-extrabold tracking-tight text-gold"></strong><p class="mt-3 text-sm text-blue-100">Save this ID to track your order below.</p></div><button type="button" id="newOrder" class="no-print mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-teal px-4 text-sm font-extrabold text-white"><i data-lucide="plus" class="h-4 w-4"></i> Place another order</button>
+        </section>
+      </section>
+
+      <aside class="space-y-5 lg:sticky lg:top-6 no-print">
+        <section class="rounded-[24px] bg-navy p-6 text-white shadow-navy">
+          <div class="flex items-start justify-between"><div><p class="text-xs font-extrabold uppercase tracking-[.14em] text-teal-100">Live bill</p><h2 class="mt-2 text-2xl font-extrabold">Your estimate</h2></div><i data-lucide="receipt" class="h-6 w-6 text-gold"></i></div>
+          <div class="mt-7 space-y-4 text-sm"><div class="flex justify-between gap-4 text-blue-100"><span>Pages / sheets</span><strong id="billPages" class="text-white">—</strong></div><div class="flex justify-between gap-4 text-blue-100"><span>Print cost</span><strong id="billPrint" class="text-white">৳ 0.00</strong></div><div class="flex justify-between gap-4 text-blue-100"><span>Binding</span><strong id="billBinding" class="text-white">৳ 0.00</strong></div><div class="flex justify-between gap-4 text-blue-100"><span>Delivery</span><strong id="billDelivery" class="text-white">৳ 60.00</strong></div></div>
+          <div class="mt-6 border-t border-white/20 pt-5"><div class="flex items-end justify-between gap-3"><span class="font-bold text-blue-100">Total bill</span><strong id="billTotal" class="text-3xl font-extrabold text-gold">৳ 60.00</strong></div><p class="mt-2 text-xs text-blue-200">Final price updates as you customize.</p></div>
+        </section>
+        <section class="rounded-[24px] border border-gold/30 bg-gold/10 p-5"><div class="flex gap-3"><span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold text-white"><i data-lucide="headphones" class="h-5 w-5"></i></span><div><h3 class="font-extrabold text-ink">Need a specialist job?</h3><p class="mt-2 text-sm leading-6 text-ink/70">For Deed documents, official stamps, AutoCAD drawings, and digital banners, message our manual helpline.</p><a href="https://wa.me/8801839802001" target="_blank" rel="noreferrer" class="mt-3 inline-flex items-center gap-2 text-sm font-extrabold text-gold hover:underline">WhatsApp 01839802001 <i data-lucide="arrow-up-right" class="h-4 w-4"></i></a></div></div></section>
+      </aside>
     </div>
 
-    <!-- Special Notices -->
-    <div style="background: #fff3e0; border-left: 4px solid var(--gold); padding: 12px; margin-bottom: 20px; border-radius: 4px; font-size: 14px;">
-        📌 <b>বিশেষ নোটিশ:</b> দলিল (Deed), অফিশিয়াল স্ট্যাম্প, অটোক্যাড (AutoCAD) ড্রয়িং বা ডিজিটাল ব্যানার প্রিন্টের জন্য সরাসরি হেল্পলাইনে নক দিন: <b>01839802001</b>
+    <section id="track" class="mt-16 border-t border-slate-200 pt-12">
+      <div class="grid gap-8 lg:grid-cols-[.8fr_1.2fr] lg:items-end"><div><p class="text-xs font-extrabold uppercase tracking-[.14em] text-teal">Order tracking</p><h2 class="mt-2 text-3xl font-extrabold tracking-tight text-navy">Know where your print is.</h2><p class="mt-3 max-w-lg text-sm leading-6 text-slate-500">Enter the MJ order ID from your receipt and we’ll show the latest status.</p></div><form id="trackForm" class="flex flex-col gap-3 sm:flex-row"><input id="trackId" class="field flex-1" placeholder="e.g. MJ-A1B2C3" aria-label="Order ID" required><button class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-navy px-5 font-extrabold text-white transition hover:bg-navy/90" type="submit"><i data-lucide="search" class="h-4 w-4"></i> Check status</button></form></div>
+      <div id="trackResult" class="mt-6 hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-live="polite"></div>
+    </section>
+  </main>
+  <footer id="contact" class="no-print bg-[#0d162a] px-5 pb-7 pt-12 text-sm text-[#9eb0ca]">
+    <div class="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1fr_1.15fr_1fr] lg:gap-14">
+      <div>
+        <div class="flex items-center gap-3 text-white"><span class="grid h-11 w-11 place-items-center rounded-xl bg-[#2463e8] text-white shadow-lg shadow-[#2463e8]/25"><i data-lucide="printer" class="h-5 w-5"></i></span><strong class="text-lg tracking-tight">Mahajan IT Printing Hub</strong></div>
+        <p class="mt-6 max-w-sm leading-6">Fast, transparent, and dependable online printing with doorstep delivery across Dhaka.</p>
+        <a href="https://wa.me/8801839802001" target="_blank" rel="noreferrer" class="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#00a878] px-4 py-2 font-extrabold text-white transition hover:-translate-y-0.5"><i data-lucide="message-square" class="h-4 w-4"></i> Chat on WhatsApp</a>
+      </div>
+      <div>
+        <h2 class="text-sm font-extrabold uppercase tracking-[.08em] text-white">Visit &amp; Contact Us</h2>
+        <div class="mt-5 space-y-4">
+          <p class="flex gap-3 leading-6"><i data-lucide="map-pin" class="mt-1 h-4 w-4 shrink-0 text-[#4c91ff]"></i><span>Nilkhet New Market Commercial Building, 2nd Floor (C-61, C-62), Dhaka.</span></p>
+          <p class="flex gap-3"><i data-lucide="clock-3" class="mt-0.5 h-4 w-4 shrink-0 text-[#4c91ff]"></i><span>Operating Hours: 9:00 AM – 10:00 PM (Daily)</span></p>
+          <p class="flex gap-3"><i data-lucide="phone" class="mt-0.5 h-4 w-4 shrink-0 text-[#4c91ff]"></i><a href="tel:01839802001" class="transition hover:text-white">01839802001</a></p>
+          <p class="flex gap-3"><i data-lucide="message-circle" class="mt-0.5 h-4 w-4 shrink-0 text-[#4c91ff]"></i><span>WhatsApp · bKash · Nagad · Bangla QR</span></p>
+        </div>
+      </div>
+      <div>
+        <h2 class="text-sm font-extrabold uppercase tracking-[.08em] text-white">Location Map</h2>
+        <div class="mt-5 overflow-hidden rounded-xl border border-white/10 bg-[#18243a]">
+          <iframe title="Mahajan IT Printing Hub location map" src="https://www.google.com/maps?q=Nilkhet+New+Market+Commercial+Building,+Dhaka&output=embed" class="h-40 w-full grayscale-[.15] opacity-90" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+        </div>
+      </div>
     </div>
-
-    <form id="calcForm">
-        <div class="section-box">
-            <div class="form-group">
-                <label>১. পিডিএফ ফাইল আপলোড করুন (সর্বোচ্চ ৫০ MB):</label>
-                <input type="file" id="pdfFile" accept="application/pdf" required>
-            </div>
-            
-            <div id="whatsappAlert" class="whatsapp-alert">
-                ⚠️ আপনার ফাইলটির সাইজ ৫০ MB-এর বেশি। দ্রুত প্রিন্ট সুবিধার জন্য সরাসরি আমাদের হোয়াটসঅ্যাপে ফাইলটি পাঠান।<br>
-                <a href="https://wa.me/8801839802001" class="whatsapp-btn" target="_blank">📲 Send File via WhatsApp (01839802001)</a>
-            </div>
-        </div>
-
-        <div class="section-box">
-            <div class="form-group">
-                <label>২. পেপার সাইজ:</label>
-                <select id="paperSize">
-                    <option value="A4">A4 Size</option>
-                    <option value="Legal">Legal Size</option>
-                    <option value="A3">A3 Size</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>৩. পেপার থিকনেস (GSM):</label>
-                <select id="gsm">
-                    <option value="70">70 GSM (-৳0.10/page)</option>
-                    <option value="80" selected>80 GSM (Standard)</option>
-                    <option value="90">90 GSM (+৳0.10/page)</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>৪. কালার মোড & প্রিন্টিং পার্ট:</label>
-                <select id="colorType">
-                    <option value="bw">সাদা-কালো (B&W)</option>
-                    <option value="color">রঙিন (Color)</option>
-                </select>
-                <select id="printSide" style="margin-top: 8px;">
-                    <option value="single">এক পাশ (Single-sided)</option>
-                    <option value="double">উভয় পাশ (Double-sided)</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>৫. বাইন্ডিং ও লেমিনেশন অপশন:</label>
-                <select id="binding">
-                    <option value="none">কোনো বাইন্ডিং প্রয়োজন নেই</option>
-                    <option value="stapler">স্ট্যাপলার বাইন্ডিং (৳১০)</option>
-                    <option value="spiral">স্পাইরাল বাইন্ডিং (A4: ৳৬০ / Legal: ৳80)</option>
-                    <option value="hardcover">ওয়াটারপ্রুফ কালার হার্ডকভার (A4: ৳১০০ / Legal: ৳১৩০)</option>
-                </select>
-                <label style="margin-top: 10px; font-weight: normal;">
-                    <input type="checkbox" id="lamination"> পেজ লেমিনেশন (A4: ৳১৫/পেজ, Legal: ৳২০/পেজ)
-                </label>
-            </div>
-
-            <div class="form-group">
-                <label>৬. ডেলিভারি এলাকা নির্বাচন করুন:</label>
-                <select id="deliveryOption">
-                    <option value="regular_dhaka">ঢাকার ভিতরে রেগুলার ডেলিভারি (৳৭০)</option>
-                    <option value="express_dhaka">ঢাকার ভিতরে এক্সপ্রেস ডেলিভারি (৳১৫০)</option>
-                    <option value="outside_dhaka">ঢাকার বাইরে ডেলিভারি (৳১৬০)</option>
-                    <option value="pickup">অফিস থেকে পিকআপ (৳০)</option>
-                </select>
-            </div>
-        </div>
-    </form>
-
-    <!-- Total Price Summary -->
-    <div class="price-summary" id="summaryBox" style="display:none;">
-        <h3>📊 অটোমেটেড বিল হিসাব:</h3>
-        <table>
-            <tr><td>মোট পেজ সংখ্যা:</td><td id="resPages">0</td></tr>
-            <tr><td>প্রিন্টিং খরচ:</td><td>৳ <span id="resPrint">0</span></td></tr>
-            <tr><td>বাইন্ডিং খরচ:</td><td>৳ <span id="resBinding">0</span></td></tr>
-            <tr><td>লেমিনেশন খরচ:</td><td>৳ <span id="resLamination">0</span></td></tr>
-            <tr><td>ডেলিভারি চার্জ:</td><td>৳ <span id="resDelivery">0</span></td></tr>
-            <tr class="total"><td>সর্বমোট প্রদেয় বিল:</td><td>৳ <span id="resTotal">0</span></td></tr>
-        </table>
-    </div>
-
-    <!-- Checkout Form -->
-    <div class="payment-box" id="checkoutSection" style="display:none;">
-        <h3>💳 পেমেন্ট ও অর্ডার সাবমিট করুন:</h3>
-        <p>বিকাশ / নগদ / বাংলা কিউআর নম্বর: <b>01839802001</b> (Send Money / Payment)</p>
-        
-        <div class="form-group">
-            <input type="text" id="custName" placeholder="আপনার নাম" required>
-        </div>
-        <div class="form-group">
-            <input type="text" id="custPhone" placeholder="মোবাইল নম্বর" required>
-        </div>
-        <div class="form-group">
-            <input type="text" id="custAddress" placeholder="ডেলিভারি ঠিকানা" required>
-        </div>
-        <div class="form-group">
-            <select id="payMethod">
-                <option value="bkash">bKash (01839802001)</option>
-                <option value="nagad">Nagad (01839802001)</option>
-                <option value="bangla_qr">Bangla QR</option>
-                <option value="cod">Cash on Delivery</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <input type="text" id="trxId" placeholder="Transaction ID (TrxID) - COD হলে খালি রাখুন">
-        </div>
-        <button class="btn-submit" onclick="submitOrder()">অর্ডার কনফার্ম করুন</button>
-    </div>
-
-    <div id="confirmationReceipt" style="display:none; background: #e3f2fd; border: 2px dashed #1976d2; padding: 20px; border-radius: 8px; margin-top: 20px; text-align: center;">
-        <h2 style="color: #1565c0; margin-top:0;">🎉 অর্ডার সফলভাবে গৃহীত হয়েছে!</h2>
-        <p style="font-size: 18px;">আপনার অর্ডার আইডি: <b id="outOrderId" style="color:#d81b60;"></b></p>
-        <p id="outMsg"></p>
-    </div>
-</div>
-
-<script src="app.js"></script>
+    <div class="mx-auto mt-12 max-w-7xl border-t border-white/10 pt-6 text-center text-xs text-[#7184a5]">© 2026 Mahajan IT Printing Hub. All rights reserved.</div>
+  </footer>
+  <script src="app.js"></script>
 </body>
 </html>
