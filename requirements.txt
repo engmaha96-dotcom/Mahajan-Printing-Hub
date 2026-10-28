@@ -34,15 +34,7 @@ starlette==1.8.0
 typing-inspection==0.4.4
 typing_extensions==4.16.0
 tzdata==2026.5
-uvicorn==0.54.0
+uvicorn==0.30.0
 Werkzeug==3.1.9
 xlsxwriter==3.2.9
-fastapi
-uvicorn
-python-multipart
-pypdf
-PyMuPDF
-gunicorn
-uvicorn==0.30.0
 gunicorn==22.0.0
-
