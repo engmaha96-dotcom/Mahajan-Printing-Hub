@@ -69,7 +69,12 @@ jobs:
 
       - name: Ensure Azure Web App is running
         run: |
-          RESOURCE_GROUP="$(az webapp show --name 'mahajan-printing-hub' --query resourceGroup -o tsv)"
+          set -euo pipefail
+          RESOURCE_GROUP="$(az resource list --name 'mahajan-printing-hub' --resource-type 'Microsoft.Web/sites' --query '[0].resourceGroup' -o tsv)"
+          if [ -z "$RESOURCE_GROUP" ]; then
+            echo "Unable to resolve resource group for web app 'mahajan-printing-hub'."
+            exit 1
+          fi
           az webapp start --name 'mahajan-printing-hub' --resource-group "$RESOURCE_GROUP"
 
       - name: 'Deploy to Azure Web App'
