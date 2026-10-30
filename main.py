@@ -2,14 +2,16 @@ import html
 import io
 import json
 import os
+import secrets
 import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 
 try:
@@ -36,6 +38,8 @@ UPLOAD_DIR = "uploaded_files"
 ORDERS_FILE = "orders.json"
 MAX_FILE_BYTES = 50 * 1024 * 1024
 HOTLINE = "01839802001"
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "password123")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 if not os.path.exists(ORDERS_FILE):
@@ -66,6 +70,7 @@ ORDER_STATUSES = [
 ]
 LEGACY_STATUS_MAP = {"received": "Order Received"}
 temp_file_store: dict[str, dict[str, Any]] = {}
+admin_security = HTTPBasic(realm="Mahajan IT Printing Hub Admin")
 
 
 def read_orders() -> list[dict[str, Any]]:
@@ -93,6 +98,26 @@ def read_orders() -> list[dict[str, Any]]:
 def write_orders(orders: list[dict[str, Any]]) -> None:
     with open(ORDERS_FILE, "w", encoding="utf-8") as orders_file:
         json.dump(orders, orders_file, ensure_ascii=False, indent=2)
+
+
+def require_admin(credentials: HTTPBasicCredentials = Depends(admin_security)) -> str:
+    username_ok = secrets.compare_digest(credentials.username, ADMIN_USERNAME)
+    password_ok = secrets.compare_digest(credentials.password, ADMIN_PASSWORD)
+    if not (username_ok and password_ok):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect admin username or password.",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username
+
+
+def sorted_orders() -> list[dict[str, Any]]:
+    return sorted(
+        read_orders(),
+        key=lambda order: str(order.get("timestamp", "")),
+        reverse=True,
+    )
 
 
 def count_pdf_pages(contents: bytes) -> int:
@@ -264,11 +289,22 @@ class OrderStatusUpdate(BaseModel):
     status: str
 
 
-@app.post("/api/admin/orders/update-status")
-@app.patch("/api/admin/orders/update-status")
-async def update_order_status(payload: OrderStatusUpdate):
-    order_id = payload.order_id.strip().upper()
-    if payload.status not in ORDER_STATUSES:
+class StatusPayload(BaseModel):
+    status: str
+
+
+def normalize_status(value: str) -> str:
+    aliases = {
+        "received": "Order Received",
+        "printing": "Printing in Progress",
+        "completed": "Ready for Pickup",
+        "delivered": "Delivered",
+    }
+    return aliases.get(value.strip().lower(), value.strip())
+
+
+def save_order_status(order_id: str, requested_status: str) -> dict[str, str]:
+    if requested_status not in ORDER_STATUSES:
         raise HTTPException(status_code=400, detail="Invalid order status.")
 
     orders = read_orders()
@@ -276,113 +312,57 @@ async def update_order_status(payload: OrderStatusUpdate):
     if not order:
         raise HTTPException(status_code=404, detail="Order not found.")
 
-    order["status"] = payload.status
+    order["status"] = requested_status
     order["status_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     write_orders(orders)
     return {
         "status": "success",
         "order_id": order_id,
-        "order_status": payload.status,
+        "order_status": requested_status,
         "updated_at": order["status_updated_at"],
     }
 
 
-@app.get("/admin", response_class=HTMLResponse)
-async def admin_panel():
-    orders = read_orders()
-    rows = []
-    for order in orders:
-        order_id = html.escape(str(order.get("order_id", "N/A")))
-        filename = order.get("file_name")
-        download = (
-            f'<a href="/download/{html.escape(str(filename))}" class="btn-download">Download PDF</a>'
-            if filename and filename != "N/A"
-            else '<span class="muted">No file</span>'
-        )
-        order_status = order.get("status", "Order Received")
-        status_options = "".join(
-            f'<option value="{html.escape(status)}" {"selected" if status == order_status else ""}>{html.escape(status)}</option>'
-            for status in ORDER_STATUSES
-        )
-        rows.append(
-            f"""
-            <tr class="order-row" data-status="{html.escape(order_status)}">
-                <td><strong>{order_id}</strong><small>{html.escape(str(order.get("timestamp", "N/A")))}</small></td>
-                <td><strong>{html.escape(str(order.get("customer_name", "N/A")))}</strong><small>{html.escape(str(order.get("customer_phone", "N/A")))}</small></td>
-                <td>{html.escape(str(order.get("area", "N/A")))}<small>{html.escape(str(order.get("address", "N/A")))}</small></td>
-                <td><select class="status-select" data-order-id="{order_id}">{status_options}</select><small class="status-meta">{html.escape(str(order.get("payment_method", "")).upper())} · {html.escape(str(order.get("trx_id", "No TrxID")))}</small></td>
-                <td class="amount">৳ {float(order.get("amount", 0)):.2f}</td>
-                <td>{download}</td>
-            </tr>
-            """
-        )
+@app.post("/api/admin/order/{order_id}/status")
+async def update_order_status(
+    order_id: str,
+    payload: StatusPayload,
+    _: str = Depends(require_admin),
+):
+    return save_order_status(order_id.strip().upper(), normalize_status(payload.status))
 
-    order_rows = "".join(rows) if rows else '<tr class="empty-row"><td colspan="6">No orders received yet.</td></tr>'
-    return HTMLResponse(
-        f"""<!doctype html>
-        <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>Admin · Mahajan IT Printing Hub</title>
-        <style>
-        :root{{font-family:Inter,Segoe UI,sans-serif;color:#10233b;background:#f6f8fb}}*{{box-sizing:border-box}}body{{margin:0;padding:32px}}.shell{{max-width:1400px;margin:auto;background:#fff;border:1px solid #dfe7ef;border-radius:20px;box-shadow:0 18px 50px #10233b12;overflow:hidden}}header{{padding:28px 32px;background:#0f3863;color:#fff;display:flex;justify-content:space-between;gap:20px;align-items:center}}h1{{margin:0;font-size:clamp(1.35rem,3vw,2rem)}}header p{{margin:6px 0 0;color:#d4e4f0}}.count{{background:#00a8b5;padding:10px 14px;border-radius:99px;font-weight:800;white-space:nowrap}}.filters{{display:flex;gap:10px;padding:20px 24px;border-bottom:1px solid #e8eef4}}.filter{{border:1px solid #dfe7ef;background:#fff;color:#52708b;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer}}.filter.active{{background:#0f3863;color:#fff;border-color:#0f3863}}.table-wrap{{overflow:auto}}table{{width:100%;border-collapse:collapse;min-width:980px}}th,td{{padding:16px 18px;text-align:left;border-bottom:1px solid #e8eef4;vertical-align:top}}th{{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:#52708b;background:#f8fafc}}td strong{{display:block;color:#0f3863}}td small{{display:block;margin-top:5px;color:#6b8194;line-height:1.45}}.status-select{{min-height:38px;border:1px solid #cdd9e4;border-radius:8px;background:#fff;color:#0f3863;padding:6px 9px;font-weight:800;max-width:210px}}.status-select:focus{{border-color:#00a8b5;outline:3px solid #00a8b522}}.status-select.saving{{opacity:.6}}.status-select.saved{{border-color:#00a8b5;background:#e8fbfa}}.status-select.failed{{border-color:#d94b4b;background:#fff1f1}}.amount{{font-weight:800;color:#d37d19;white-space:nowrap}}.btn-download{{display:inline-block;padding:9px 12px;background:#0f3863;color:#fff;border-radius:8px;text-decoration:none;font-size:.8rem;font-weight:700}}.muted{{color:#9aa8b4;font-size:.85rem}}.empty-row td{{text-align:center;padding:56px;color:#6b8194}}@media(max-width:700px){{body{{padding:12px}}header{{padding:22px;align-items:flex-start;flex-direction:column}}.filters{{padding:16px;overflow:auto}}}}
-        </style></head><body><main class="shell"><header><div><h1>Mahajan IT Printing Hub</h1><p>Incoming orders · Admin dashboard</p></div><div class="count"><span id="orderCount">{len(orders)} orders</span></div></header>
-        <div class="filters"><button class="filter active" data-filter="active">Active Orders</button><button class="filter" data-filter="completed">Completed Orders</button></div>
-        <div class="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Delivery</th><th>Payment / status</th><th>Total</th><th>File</th></tr></thead><tbody id="ordersBody">
-        {order_rows}
-        </tbody></table></div></main><script>
-        const statuses = {json.dumps(ORDER_STATUSES)};
-        const emptyRow = '<tr class="empty-row"><td colspan="6">No orders in this view.</td></tr>';
-        function applyFilter(filter) {{
-          const rows = [...document.querySelectorAll('.order-row')];
-          let visible = 0;
-          rows.forEach(row => {{
-            const isCompleted = row.dataset.status === 'Delivered';
-            const show = filter === 'completed' ? isCompleted : !isCompleted;
-            row.style.display = show ? '' : 'none';
-            if (show) visible++;
-          }});
-          document.querySelector('.empty-row')?.remove();
-          if (!visible) document.querySelector('#ordersBody').insertAdjacentHTML('beforeend', emptyRow);
-          document.querySelector('#orderCount').textContent = `${{visible}} ${{visible === 1 ? 'order' : 'orders'}}`;
-        }}
-        document.querySelectorAll('.filter').forEach(button => button.addEventListener('click', () => {{
-          document.querySelectorAll('.filter').forEach(item => item.classList.remove('active'));
-          button.classList.add('active');
-          applyFilter(button.dataset.filter);
-        }}));
-        document.querySelectorAll('.status-select').forEach(select => select.addEventListener('change', async () => {{
-          const previous = select.dataset.previous || select.value;
-          select.dataset.previous = previous;
-          select.classList.add('saving');
-          try {{
-            const response = await fetch('/api/admin/orders/update-status', {{
-              method: 'PATCH',
-              headers: {{'Content-Type': 'application/json'}},
-              body: JSON.stringify({{order_id: select.dataset.orderId, status: select.value}})
-            }});
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.detail || 'Could not update status.');
-            select.closest('tr').dataset.status = data.order_status;
-            select.classList.remove('failed');
-            select.classList.add('saved');
-            select.dataset.previous = data.order_status;
-            const activeFilter = document.querySelector('.filter.active').dataset.filter;
-            applyFilter(activeFilter);
-            setTimeout(() => select.classList.remove('saved'), 1200);
-          }} catch (error) {{
-            select.value = previous;
-            select.classList.add('failed');
-            alert(error.message);
-          }} finally {{
-            select.classList.remove('saving');
-          }}
-        }}));
-        applyFilter('active');
-        </script></body></html>"""
-    )
+
+@app.post("/api/admin/orders/update-status")
+@app.patch("/api/admin/orders/update-status")
+async def update_order_status_legacy(
+    payload: OrderStatusUpdate,
+    _: str = Depends(require_admin),
+):
+    return save_order_status(payload.order_id.strip().upper(), normalize_status(payload.status))
+
+
+@app.get("/api/admin/orders")
+async def admin_orders(_: str = Depends(require_admin)):
+    return {"status": "success", "orders": sorted_orders()}
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_panel(_: str = Depends(require_admin)):
+    with open(os.path.join("static", "admin.html"), "r", encoding="utf-8") as admin_file:
+        return HTMLResponse(content=admin_file.read())
+
+
+@app.get("/api/admin/download/{filename}")
+async def admin_download_file(filename: str, _: str = Depends(require_admin)):
+    safe_name = os.path.basename(filename)
+    file_path = os.path.join(UPLOAD_DIR, safe_name)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(path=file_path, filename=safe_name, media_type="application/pdf")
 
 
 @app.get("/download/{file_name}")
-async def download_file(file_name: str):
+async def download_file(file_name: str, _: str = Depends(require_admin)):
     safe_name = os.path.basename(file_name)
     file_path = os.path.join(UPLOAD_DIR, safe_name)
     if not os.path.isfile(file_path):
