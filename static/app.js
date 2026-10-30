@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
   let uploadedFiles = [];
-  let calculatedPageCount = 0;
 
   const pdfInput = document.getElementById('pdfFile');
   const dropZone = document.getElementById('dropZone');
@@ -8,11 +7,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const totalPageNum = document.getElementById('totalPageNum');
   const toStep2Btn = document.getElementById('toStep2');
   const largeFileNotice = document.getElementById('largeFileNotice');
+  const orderForm = document.getElementById('orderForm');
+  const orderError = document.getElementById('orderError');
 
-  // Input change event
+  // Multi-file Input Handling
   if (pdfInput) {
     pdfInput.addEventListener('change', (e) => {
-      handleFiles(e.target.files);
+      if (e.target.files && e.target.files.length > 0) {
+        handleFiles(e.target.files);
+        pdfInput.value = '';
+      }
     });
   }
 
@@ -26,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dropZone.addEventListener('drop', (e) => {
       e.preventDefault();
       dropZone.classList.remove('dragover');
-      if (e.dataTransfer.files.length) {
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         handleFiles(e.dataTransfer.files);
       }
     });
@@ -38,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     Array.from(files).forEach(file => {
       if (file.size > 100 * 1024 * 1024) {
         hasOver100MB = true;
-      } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+      } else {
         uploadedFiles.push(file);
       }
     });
@@ -61,25 +65,27 @@ document.addEventListener('DOMContentLoaded', () => {
       if (toStep2Btn) toStep2Btn.disabled = true;
       return;
     }
+    
     if (toStep2Btn) toStep2Btn.disabled = false;
 
     uploadedFiles.forEach((file, index) => {
       const item = document.createElement('div');
-      item.className = 'flex items-center justify-between rounded-xl bg-paper p-3.5 border border-slate-200 text-sm';
+      item.className = 'flex items-center justify-between rounded-xl bg-slate-50 p-3.5 border border-slate-200 text-sm mb-2';
       item.innerHTML = `
         <div class="flex items-center gap-3">
-          <i data-lucide="file-text" class="h-5 w-5 text-royalBlue"></i>
+          <span class="grid h-8 w-8 place-items-center rounded-lg bg-blue-100 text-royalBlue font-bold text-xs">PDF</span>
           <div>
             <strong class="block text-navy font-bold">${file.name}</strong>
             <span class="text-xs text-slate-500">${(file.size / (1024 * 1024)).toFixed(2)} MB</span>
           </div>
         </div>
-        <button type="button" onclick="removeFile(${index})" class="text-slate-400 hover:text-red-500 p-1">
-          <i data-lucide="x" class="h-4 w-4"></i>
+        <button type="button" onclick="window.removeFile(${index})" class="text-slate-400 hover:text-red-500 p-1 font-bold text-lg">
+          ✕
         </button>
       `;
       fileMetaList.appendChild(item);
     });
+
     if (window.lucide) lucide.createIcons();
   }
 
@@ -89,23 +95,20 @@ document.addEventListener('DOMContentLoaded', () => {
     calculateTotalPagesAndBill();
   };
 
-  async function calculateTotalPagesAndBill() {
+  function calculateTotalPagesAndBill() {
     if (uploadedFiles.length === 0) {
-      calculatedPageCount = 0;
       if (totalPageNum) totalPageNum.innerText = '0';
       updateBill(0);
       return;
     }
 
-    // Estimate total pages dynamically across all uploaded files
     let estimatedPages = 0;
     uploadedFiles.forEach(f => {
       estimatedPages += Math.max(1, Math.round(f.size / (80 * 1024)));
     });
 
-    calculatedPageCount = estimatedPages;
-    if (totalPageNum) totalPageNum.innerText = calculatedPageCount;
-    updateBill(calculatedPageCount);
+    if (totalPageNum) totalPageNum.innerText = estimatedPages;
+    updateBill(estimatedPages);
   }
 
   function updateBill(pages) {
@@ -124,10 +127,9 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Rate rules
-    const printRate = 1.50; // Default B&W 80GSM Single Side
+    const printRate = 1.50;
     const printCost = pages * printRate;
-    const deliveryCost = 60.00; // Default Dhaka
+    const deliveryCost = 60.00;
 
     if (billPages) billPages.innerText = `${pages} pages`;
     if (billPrint) billPrint.innerText = `৳ ${printCost.toFixed(2)}`;
@@ -135,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (billTotal) billTotal.innerText = `৳ ${(printCost + deliveryCost).toFixed(2)}`;
   }
 
-  // Wizard Step Navigation
+  // Step Navigation
   const steps = document.querySelectorAll('.step-panel');
   const progressSteps = document.querySelectorAll('.progress-step');
 
@@ -174,4 +176,77 @@ document.addEventListener('DOMContentLoaded', () => {
       goToStep(parseInt(currentPanel) - 1);
     });
   });
+
+  // Form Submission Logic
+  if (orderForm) {
+    orderForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (orderError) orderError.classList.add('hidden');
+
+      if (uploadedFiles.length === 0) {
+        if (orderError) {
+          orderError.innerText = 'Please upload at least one PDF file.';
+          orderError.classList.remove('hidden');
+        }
+        goToStep(1);
+        return;
+      }
+
+      const submitBtn = document.getElementById('submitOrder');
+      if (submitBtn) submitBtn.disabled = true;
+
+      const formData = new FormData();
+      uploadedFiles.forEach(file => {
+        formData.append('files', file);
+      });
+
+      formData.append('customer_name', document.getElementById('customerName').value);
+      formData.append('customer_phone', document.getElementById('customerPhone').value);
+      formData.append('address', document.getElementById('address').value);
+      formData.append('paper_size', document.querySelector('input[name="paper_size"]:checked').value);
+      formData.append('gsm', document.getElementById('gsm').value);
+      formData.append('color_type', document.querySelector('input[name="color_type"]:checked').value);
+      formData.append('print_side', document.querySelector('input[name="print_side"]:checked').value);
+      formData.append('binding', document.getElementById('binding').value);
+      formData.append('delivery_option', document.getElementById('deliveryOption').value);
+      formData.append('payment_method', document.getElementById('paymentMethod').value);
+      formData.append('trx_id', document.getElementById('trxId').value);
+
+      try {
+        const response = await fetch('/api/order', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.status === 'success') {
+          orderForm.classList.add('hidden');
+          const receipt = document.getElementById('receipt');
+          if (receipt) {
+            document.getElementById('receiptOrderId').innerText = data.order_id;
+            document.getElementById('receiptMessage').innerText = `Thank you, ${data.customer_name}. Your order has been placed.`;
+            receipt.classList.remove('hidden');
+          }
+        } else {
+          throw new Error(data.detail || 'Failed to submit order');
+        }
+      } catch (err) {
+        if (orderError) {
+          orderError.innerText = err.message || 'Error submitting order. Please try again.';
+          orderError.classList.remove('hidden');
+        }
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
+
+  // New Order Reset
+  const newOrderBtn = document.getElementById('newOrder');
+  if (newOrderBtn) {
+    newOrderBtn.addEventListener('click', () => {
+      window.location.reload();
+    });
+  }
 });
